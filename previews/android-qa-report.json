@@ -1,0 +1,20 @@
+{
+  "android_api": 36,
+  "device": "Disposable AOSP ATD arm64 emulator",
+  "passed": [
+    "APK installation and foreground service startup",
+    "light and dark UI render",
+    "no files published before consent",
+    "accepted multi-file + zero-byte + Unicode + 32 MiB download",
+    "SHA-256 verified Android upload back to Mac",
+    "duplicate receipt does not overwrite",
+    "active receive cancellation removes unpublished file",
+    "background rejection",
+    "notifications denied marks receiver unavailable"
+  ],
+  "not_verified": [
+    "physical REDMI Turbo 4 Pro",
+    "HyperOS background kill policy",
+    "Bonjour on a physical Wi-Fi network"
+  ]
+}

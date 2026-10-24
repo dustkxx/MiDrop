@@ -1,0 +1,8 @@
+{
+  "passed": [
+    "actual APK 0.1 -> 0.2 in-place installation",
+    "application private preferences preserved byte-for-byte",
+    "certificate/token/address fields retained"
+  ],
+  "device": "disposable Android 16 AVD only"
+}

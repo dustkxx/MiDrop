@@ -1,0 +1,8 @@
+{
+  "production_mac_started": true,
+  "health_api": 2,
+  "certificate_preserved": true,
+  "credentials_preserved": true,
+  "retained_device_count": 1,
+  "local_control_mode": "0600"
+}

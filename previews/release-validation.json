@@ -1,0 +1,57 @@
+{
+  "release": "0.2.0",
+  "protocol_integration_tests_passed": 23,
+  "android_version_code": 2,
+  "reports": {
+    "android-qa-report.json": {
+      "android_api": 36,
+      "device": "Disposable AOSP ATD arm64 emulator",
+      "passed": [
+        "APK installation and foreground service startup",
+        "light and dark UI render",
+        "no files published before consent",
+        "accepted multi-file + zero-byte + Unicode + 32 MiB download",
+        "SHA-256 verified Android upload back to Mac",
+        "duplicate receipt does not overwrite",
+        "active receive cancellation removes unpublished file",
+        "background rejection",
+        "notifications denied marks receiver unavailable"
+      ],
+      "not_verified": [
+        "physical REDMI Turbo 4 Pro",
+        "HyperOS background kill policy",
+        "Bonjour on a physical Wi-Fi network"
+      ]
+    },
+    "android-visual-report.json": {
+      "android_api": 36,
+      "passed": [
+        "latest APK light/dark actual renders",
+        "rounded receive prompt",
+        "1.3x font scale render",
+        "accept action and MediaStore completion"
+      ]
+    },
+    "mac-runtime-report.json": {
+      "production_mac_started": true,
+      "health_api": 2,
+      "certificate_preserved": true,
+      "credentials_preserved": true,
+      "retained_device_count": 1,
+      "local_control_mode": "0600"
+    },
+    "trust-qa-report.json": {
+      "passed": "actual Android first-connection flow: pending request -> local approval -> persisted token and pinned certificate; no code entry",
+      "api": 36
+    },
+    "upgrade-qa-report.json": {
+      "passed": [
+        "actual APK 0.1 -> 0.2 in-place installation",
+        "application private preferences preserved byte-for-byte",
+        "certificate/token/address fields retained"
+      ],
+      "device": "disposable Android 16 AVD only"
+    }
+  },
+  "apk_sha256": "cb0a6ec9dd4b043fc53a3beed42d0517adab291603bc799f22ae96ba4c692369"
+}

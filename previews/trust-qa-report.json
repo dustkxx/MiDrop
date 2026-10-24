@@ -1,0 +1,4 @@
+{
+  "passed": "actual Android first-connection flow: pending request -> local approval -> persisted token and pinned certificate; no code entry",
+  "api": 36
+}

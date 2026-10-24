@@ -1,0 +1,9 @@
+{
+  "android_api": 36,
+  "passed": [
+    "latest APK light/dark actual renders",
+    "rounded receive prompt",
+    "1.3x font scale render",
+    "accept action and MediaStore completion"
+  ]
+}
