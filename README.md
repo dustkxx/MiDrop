@@ -15,7 +15,7 @@ cd ~/Codes/MiDrop
 
 ## 安装与升级
 
-- Android 当前补丁版本为 **0.2.1**（versionCode 3）：修复右上角三点菜单在部分字体下只显示一个点的问题；Mac 保持 0.2.0。
+- Mac 当前版本为 **0.2.1**：状态变化时才刷新界面，降低常驻待机 CPU。Android 为 **0.2.1**（versionCode 3）：修复右上角三点菜单在部分字体下只显示一个点的问题。
 - Mac：打开 `dist/MiDrop.app`，菜单栏会出现新的双弧标识。点击它展开小面板。
 - 手机：安装 `dist/MiDrop-android.apk`，覆盖原版即可。**不需要卸载，也不要清除应用数据。**
 - 原有证书、配对凭据和 Android 签名密钥已保留。新连接流程和双向传输需要两端都更新到 0.2。
@@ -98,5 +98,7 @@ PYTHONPYCACHEPREFIX=/private/tmp/midrop-pycache python3 -m unittest discover -s 
 ```
 
 `previews/` 提供 Mac 明暗主题原生界面渲染及 Android 实际测试截图；具体结果与待验证项目见 `docs/VALIDATION.md`。图标母版为 `assets/logo.svg`。
+
+Mac 状态监听测试：`bash scripts/test-mac-state-monitor.sh`。`previews/mac-idle-cpu-report.json` 记录同机空闲 CPU 对比；短时间采样不代表长期平均能耗。
 
 `docs/PROTOCOL.md` 记录 API 与本机控制边界。源码结构为 `mac/`、`android/app/`、`assets/`、`scripts/` 和 `tests/`。

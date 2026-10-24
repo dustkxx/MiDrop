@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-24",
+  "platform": "macOS 27.0.1 arm64",
+  "method": "CPU-time delta from ps, divided by wall time; two 30-second idle samples on the same Mac, no file transfers. Startup excluded from the optimized sample. 0.0 means below sampling resolution, not a guarantee of zero CPU.",
+  "before": {
+    "mac_version": "0.2.0",
+    "duration_seconds": 30.12,
+    "app_cpu_percent": 2.391,
+    "receiver_cpu_percent": 0.199,
+    "transfers_active": 0
+  },
+  "after": {
+    "mac_version": "0.2.1",
+    "duration_seconds": 30.15,
+    "app_cpu_percent": 0.0,
+    "receiver_cpu_percent": 0.066,
+    "state_file_changes": 0,
+    "transfers_active": 0
+  },
+  "checks": [
+    "25 HTTPS and local authorization regression tests passed",
+    "Native optimized Swift monitor test: successive atomic file replacements, no idle callbacks, cancellation",
+    "Running updated app: TLS health API 2 verified",
+    "Certificate and saved device credentials unchanged"
+  ],
+  "limitations": [
+    "Short idle measurements, not a long-term energy benchmark",
+    "Physical HyperOS transfer and lock-screen scenarios not rerun for this Mac-only patch"
+  ]
+}

@@ -19,21 +19,21 @@ func brandMark(template: Bool = false) -> NSImage {
     return image
 }
 
-struct Device: Identifiable {
+struct Device: Identifiable, Equatable {
     let id: String
     let name: String
     let online: Bool
     let receiving: Bool
     init(_ d: [String: Any]) { id=d["id"] as? String ?? ""; name=d["name"] as? String ?? "手机"; online=d["online"] as? Bool ?? false; receiving=d["receiving"] as? Bool ?? false }
 }
-struct Transfer: Identifiable {
+struct Transfer: Identifiable, Equatable {
     let id, name, state, direction: String
     let bytes, size: Int64
     init(_ d: [String: Any]) { id=d["id"] as? String ?? ""; name=d["name"] as? String ?? "文件"; state=d["state"] as? String ?? ""; direction=d["direction"] as? String ?? ""; bytes=(d["bytes"] as? NSNumber)?.int64Value ?? 0; size=(d["size"] as? NSNumber)?.int64Value ?? 0 }
     var active: Bool { ["preparing","waiting","accepted","transferring"].contains(state) }
     var label: String { ["preparing":"正在准备","waiting":"等待手机确认","accepted":"手机已同意","transferring":direction == "incoming" ? "正在接收" : "正在发送","completed":"已完成","cancelled":"已取消","expired":"请求已过期","rejected":"手机已拒绝","failed":"传输未完成"][state] ?? state }
 }
-struct TrustRequest: Identifiable {
+struct TrustRequest: Identifiable, Equatable {
     let id, name: String
     init(_ d: [String: Any]) { id=d["id"] as? String ?? ""; name=d["name"] as? String ?? "手机" }
 }
@@ -54,7 +54,9 @@ final class ReceiverModel: ObservableObject {
     let destination = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0].appendingPathComponent("MiDrop")
     private var process: Process?
     private var service: NetService?
-    private var timer: Timer?
+    private var stateMonitor: StateDirectoryMonitor?
+    private var lastState: Data?
+    private var serverPort = 0
     private var lockFD: Int32 = -1
     private var stopping = false
     private var seen = Set<String>()
@@ -81,23 +83,31 @@ final class ReceiverModel: ObservableObject {
             let handle=try FileHandle(forWritingTo:log)
             p.standardOutput=handle; p.standardError=handle
             p.terminationHandler={ [weak self] p in DispatchQueue.main.async { guard let self=self,!self.stopping else { return }; self.ready=false; self.message="接收服务已停止"; self.error="请在设置中查看日志，退出后重新打开 MiDrop。"; self.service?.stop() } }
+            stateMonitor=try StateDirectoryMonitor(directory:root) { [weak self] in self?.refresh() }
             try p.run(); process=p
-            let t=Timer(timeInterval:0.6,repeats:true) { [weak self] _ in self?.refresh() }
-            RunLoop.main.add(t,forMode:.common); timer=t
+            refresh()
         } catch { message="启动失败"; self.error=error.localizedDescription }
     }
     func refresh() {
         guard let p=process,p.isRunning,
               let data=try? Data(contentsOf:root.appendingPathComponent("state.json")),
+              data != lastState,
               let d=(try? JSONSerialization.jsonObject(with:data)) as? [String:Any],
               d["pid"] as? Int == Int(p.processIdentifier),let port=d["port"] as? Int,port>0 else { return }
-        ready=true; message="接收已就绪"
-        devices=(d["trusted_devices"] as? [[String:Any]] ?? []).map(Device.init)
-        pending=(d["pending_pairs"] as? [[String:Any]] ?? []).map(TrustRequest.init)
-        transfers=(d["transfers"] as? [[String:Any]] ?? []).map(Transfer.init)
-        recent=d["recent"] as? [[String:Any]] ?? []
-        fingerprint=d["fingerprint"] as? String ?? ""
-        addresses=Self.localAddresses().map { "\($0):\(port)" }.joined(separator:"\n")
+        lastState=data
+        if !ready { ready=true }
+        if message != "接收已就绪" { message="接收已就绪" }
+        let nextDevices=(d["trusted_devices"] as? [[String:Any]] ?? []).map(Device.init)
+        let nextPending=(d["pending_pairs"] as? [[String:Any]] ?? []).map(TrustRequest.init)
+        let nextTransfers=(d["transfers"] as? [[String:Any]] ?? []).map(Transfer.init)
+        let nextRecent=d["recent"] as? [[String:Any]] ?? []
+        let nextFingerprint=d["fingerprint"] as? String ?? ""
+        if devices != nextDevices { devices=nextDevices }
+        if pending != nextPending { pending=nextPending }
+        if transfers != nextTransfers { transfers=nextTransfers }
+        if !NSArray(array:recent).isEqual(to:nextRecent) { recent=nextRecent }
+        if fingerprint != nextFingerprint { fingerprint=nextFingerprint }
+        if serverPort != port { serverPort=port; refreshAddresses() }
         if selected.isEmpty || !devices.contains(where:{$0.id==selected}) { selected=devices.first(where:{$0.receiving})?.id ?? devices.first?.id ?? "" }
         if service==nil {
             let s=NetService(domain:"local.",type:"_midrop._tcp.",name:Host.current().localizedName ?? "我的 Mac",port:Int32(port))
@@ -107,6 +117,11 @@ final class ReceiverModel: ObservableObject {
         let new=Set(pending.map(\.id)).subtracting(seen)
         seen.formUnion(pending.map(\.id))
         if !new.isEmpty { trustArrived?() }
+    }
+    func refreshAddresses() {
+        guard serverPort>0 else { return }
+        let next=Self.localAddresses().map { "\($0):\(serverPort)" }.joined(separator:"\n")
+        if addresses != next { addresses=next }
     }
     func command(_ payload: [String:Any]) {
         work.async { [weak self] in
@@ -140,7 +155,7 @@ final class ReceiverModel: ObservableObject {
         if a.runModal() == .alertFirstButtonReturn { command(["action":"revoke","id":device.id]) }
     }
     func stop() {
-        stopping=true; timer?.invalidate(); service?.stop()
+        stopping=true; stateMonitor?.cancel(); stateMonitor=nil; service?.stop()
         if let p=process,p.isRunning { p.terminate() }
         if lockFD>=0 { close(lockFD); lockFD = -1 }
     }
@@ -267,7 +282,7 @@ struct SettingsView: View {
     @ObservedObject var model:ReceiverModel
     var body: some View {
         VStack(alignment:.leading,spacing:18) {
-            HStack { Image(nsImage:brandMark(template:true)).renderingMode(.template).resizable().foregroundStyle(mint).frame(width:30,height:30); Text("MiDrop 设置").font(.title2.weight(.semibold)); Spacer(); Text("0.2.0").foregroundStyle(.secondary).font(.caption) }
+            HStack { Image(nsImage:brandMark(template:true)).renderingMode(.template).resizable().foregroundStyle(mint).frame(width:30,height:30); Text("MiDrop 设置").font(.title2.weight(.semibold)); Spacer(); Text("0.2.1").foregroundStyle(.secondary).font(.caption) }
             GroupBox("信任的设备") {
                 VStack(alignment:.leading,spacing:12) {
                     if model.devices.isEmpty { Text("还没有连接设备").foregroundStyle(.secondary) }
@@ -311,6 +326,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
     @objc func toggle() { if popover.isShown { popover.performClose(nil) } else { show() } }
     func show() { guard let button=item?.button else { return }; NSApp.activate(ignoringOtherApps:true); popover.show(relativeTo:button.bounds,of:button,preferredEdge:.minY) }
     func showSettings() {
+        model.refreshAddresses()
         popover.performClose(nil)
         if settingsWindow==nil {
             let w=NSWindow(contentRect:NSRect(x:0,y:0,width:480,height:480),styleMask:[.titled,.closable],backing:.buffered,defer:false)
@@ -337,7 +353,12 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
         }
     }
 }
-let app=NSApplication.shared
-let delegate=AppDelegate(); app.delegate=delegate
-app.setActivationPolicy(.accessory)
-app.run()
+@main
+struct MiDropApp {
+    static func main() {
+        let app=NSApplication.shared
+        let delegate=AppDelegate(); app.delegate=delegate
+        app.setActivationPolicy(.accessory)
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}

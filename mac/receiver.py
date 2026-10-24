@@ -85,6 +85,7 @@ class Receiver:
         self.attempts, self.trust_attempts = [], []
         self.port = 0
         self.last_publish = 0
+        self.last_snapshot = None
         cert, key = self.root / 'cert.pem', self.root / 'key.pem'
         if not cert.exists() or not key.exists():
             subprocess.run(['/usr/bin/openssl', 'req', '-x509', '-newkey', 'rsa:2048',
@@ -129,8 +130,7 @@ class Receiver:
             now = time.time()
             if not force and now - self.last_publish < 0.4:
                 return
-            self.last_publish = now
-            atomic_json(self.root / 'state.json', {
+            snapshot = {
                 'pid': os.getpid(), 'port': self.port, 'code': self.code, 'expires': self.expires,
                 'fingerprint': self.fingerprint, 'server_id': self.server_id,
                 'destination': str(self.destination), 'devices': len(self.devices),
@@ -138,7 +138,14 @@ class Receiver:
                 'pending_pairs': [{k: p[k] for k in ('id', 'name', 'peer', 'expires')}
                                   for p in self.pair_requests.values() if p['state'] == 'pending'],
                 'transfers': [self.public_job(j) for j in list(self.jobs.values())[-30:]],
-                'recent': self.recent[-20:][::-1]})
+                'recent': self.recent[-20:][::-1]}
+            # Keep heartbeats and housekeeping from waking the menu-bar UI.
+            # Store serialized bytes rather than mutable job/recent dictionaries.
+            encoded = json.dumps(snapshot, ensure_ascii=False)
+            if encoded != self.last_snapshot:
+                atomic_json(self.root / 'state.json', snapshot)
+                self.last_snapshot = encoded
+                self.last_publish = now
             if notify:
                 self.changed.notify_all()
 
@@ -712,7 +719,7 @@ def main():
             receiver.publish(notify=False)
     threading.Thread(target=maintain, daemon=True).start()
     try:
-        server.serve_forever(poll_interval=0.25)
+        server.serve_forever(poll_interval=1.0)
     finally:
         control.server_close()
         socket_path.unlink(missing_ok=True)

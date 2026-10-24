@@ -8,6 +8,7 @@ import ssl
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.parse import quote
 
 spec = importlib.util.spec_from_file_location("receiver", Path(__file__).parents[1] / "mac/receiver.py")
@@ -271,6 +272,33 @@ class ReceiverTests(unittest.TestCase):
         restored=module.Receiver(self.receiver.root,self.receiver.destination)
         self.assertTrue(restored.authorized(self.token))
         self.assertEqual(restored.server_id,self.receiver.server_id)
+
+    def test_idle_and_heartbeats_do_not_rewrite_ui_snapshot(self):
+        key = module.token_hash(self.token)
+        self.receiver.events(key, True, wait=0)
+        state = self.receiver.root / 'state.json'
+        before = state.stat()
+        seen = self.receiver.sessions[key]['seen']
+        with patch.object(module.time, 'time', return_value=seen + 1):
+            self.receiver.publish(notify=False)
+            self.receiver.events(key, True, wait=0)
+        self.assertEqual(state.stat().st_ino, before.st_ino)
+        self.assertEqual(state.stat().st_mtime_ns, before.st_mtime_ns)
+        self.assertEqual(self.receiver.sessions[key]['seen'], seen + 1)
+
+    def test_receiving_change_and_offline_still_publish_ui_snapshot(self):
+        key = module.token_hash(self.token)
+        self.receiver.events(key, True, wait=0)
+        state = self.receiver.root / 'state.json'
+        def device():
+            return next(d for d in json.loads(state.read_text())['trusted_devices'] if d['id'] == key[:24])
+        self.assertTrue(device()['receiving'])
+        self.receiver.events(key, False, wait=0)
+        self.assertTrue(device()['online'])
+        self.assertFalse(device()['receiving'])
+        with patch.object(module.time, 'time', return_value=self.receiver.sessions[key]['seen'] + 61):
+            self.receiver.publish(notify=False)
+        self.assertFalse(device()['online'])
 
 
     def test_restart_reclaims_only_owned_partial_namespace(self):
